@@ -13,7 +13,8 @@ def usage
   puts " --redis-port [6379]                  port proxy listens on"
   puts " --redis-url [redis://username:pas127.0.0.1:] url of proxy"
   puts " --log </var/log/apnmachined.log      the path to store the log"
-  puts " --daemon                             to daemonize the server (include full path for pem files then)"
+  puts " --daemon                             to daemonize the server (include full path for pem and pid files then)"
+  puts " --pid-file                           the path to store the pid file"
   puts " --apn-host <gateway.push.apple.com>  the apn server host (use 'sandbox' to use apple sandboxes)"
   puts " --apn-port <gateway.push.apple.com>  the apn server port "
   puts " --help                               this message"
@@ -36,9 +37,10 @@ opts = GetoptLong.new(
   ["--apn-host", "-b", GetoptLong::REQUIRED_ARGUMENT],
   ["--apn-port", "-q", GetoptLong::REQUIRED_ARGUMENT],
   ["--log", "-l", GetoptLong::REQUIRED_ARGUMENT],
-  ["--pem", "-c", GetoptLong::REQUIRED_ARGUMENT], 
+  ["--pem", "-c", GetoptLong::REQUIRED_ARGUMENT],
   ["--pem-passphrase", "-s", GetoptLong::REQUIRED_ARGUMENT],
   ["--daemon", "-d", GetoptLong::NO_ARGUMENT],
+  ["--pid-file", GetoptLong::REQUIRED_ARGUMENT],
   ["--help", "-h", GetoptLong::NO_ARGUMENT]
 )
 
@@ -50,6 +52,7 @@ apn_port = 2195
 pem = nil
 pem_passphrase = nil
 daemon = false
+pid_file = nil
 log = STDOUT
 
 $stdout.sync = true
@@ -69,7 +72,7 @@ opts.each do |opt, arg|
     if arg == 'sandbox'
       apn_host = 'gateway.sandbox.push.apple.com'
     else
-      apn_host = arg 
+      apn_host = arg
     end
   when '--apn-port'
     apn_port = arg
@@ -79,6 +82,8 @@ opts.each do |opt, arg|
     pem_passphrase = arg
   when '--daemon'
     daemon = true
+  when '--pid-file'
+    pid_file = arg
   when '--log'
     log = arg
   end
@@ -89,6 +94,11 @@ if pem.nil?
   exit 1
 else
   daemonize if daemon
+
+  if pid_file
+    File.open(pid_file, 'w') { |f| f.puts(Process.pid) }
+  end
+
   server = ApnMachine::Server::Server.new(pem, pem_passphrase, redis_host, redis_port, redis_uri, apn_host, apn_port, log)
   server.start!
 end
