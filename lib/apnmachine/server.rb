@@ -1,10 +1,4 @@
-require 'em-synchrony'
-require 'redis/connection/synchrony'
 require 'redis'
 require 'logger'
 
-require 'apnmachine/server/client'
-require 'apnmachine/server/server_connection'
-require 'apnmachine/server/error_response'
-require 'apnmachine/server/response'
 require 'apnmachine/server/server'
