@@ -1,8 +1,11 @@
 module ApnMachine
   module Server
     class Server
-      def initialize(pem, pem_passphrase = nil, redis_host = '127.0.0.1', redis_port = 6379, redis_uri = nil, apn_host = 'gateway.push.apple.com', apn_port = 2195, log = '/apnmachined.log')
-        @pem, @pem_passphrase, @apn_host, @apn_port = pem, pem_passphrase, apn_host, apn_port
+      def initialize(pem, pem_passphrase = nil, redis_host = "127.0.0.1", redis_port = 6379, redis_uri = nil, apn_host = "gateway.push.apple.com", apn_port = 2195, log = "/apnmachined.log")
+        @pem = pem
+        @pem_passphrase = pem_passphrase
+        @apn_host = apn_host
+        @apn_port = apn_port
 
         if redis_uri
           uri = URI.parse(redis_uri)
@@ -16,11 +19,13 @@ module ApnMachine
           Config.logger = Logger.new STDOUT
         elsif File.exist?(log)
           @flog = File.open(log, File::WRONLY | File::APPEND)
+          @flog.sync = true
           Config.logger = Logger.new(@flog, 'daily')
         else
           require 'fileutils'
           FileUtils.mkdir_p(File.dirname(log))
           @flog = File.open(log, File::WRONLY | File::APPEND | File::CREAT)
+          @flog.sync = true
           Config.logger = Logger.new(@flog, 'daily')
         end
       end
@@ -38,15 +43,13 @@ module ApnMachine
         @ssl_socket.sync = true
         @ssl_socket.connect
 
-        Config.logger.info "Connection to Apple Servers completed"
+        Config.logger.info "Connection to Apple Servers completed."
       end
 
       def start!
-        Config.logger.info "Connecting to Apple Servers"
-
+        Config.logger.info "Connecting to Apple Servers..."
         connect!
-
-        Config.logger.info "Starting APN Server on Redis"
+        Config.logger.info "APN Server started."
 
         loop do
           notification = @redis.lpop("apnmachine.queue")
@@ -59,12 +62,12 @@ module ApnMachine
               notif_bin = Notification.to_bytes(notification)
 
               # Sending notification
-              Config.logger.debug 'Sending notification to APN'
+              Config.logger.debug "Sending notification to APN..."
               @ssl_socket.write(notif_bin)
-              Config.logger.debug 'Notification sent'
+              Config.logger.debug "Notification sent."
             rescue Errno::EPIPE, OpenSSL::SSL::SSLError, Errno::ECONNRESET, Errno::ETIMEDOUT
               if retries > 1
-                Config.logger.error "Connection to APN servers idle for too long. Trying to reconnect"
+                Config.logger.error "Error in APN connection. Trying to reconnect..."
 
                 sleep 2
                 connect!
@@ -72,17 +75,18 @@ module ApnMachine
                 retries -= 1
                 retry
               else
-                Config.logger.error "Can't reconnect to APN Servers! Saving notification to the queue #{notification.to_s}"
+                Config.logger.error "Can't reconnect to APN Servers! Adding notification back to the queue #{notification.to_s}"
                 @redis.rpush("apnmachine.queue", notification)
 
-                Config.logger.error "Attempting to reconnect in 30 seconds"
+                Config.logger.info "Attempting to reconnect in 30 seconds..."
                 sleep 30
                 connect!
               end
             rescue Exception => e
               Config.logger.error "Unable to handle: #{e}"
-            ensure
-              @flog.flush if @flog
+              Config.logger.error "Adding notification back to the queue #{notification.to_s}"
+
+              @redis.rpush("apnmachine.queue", notification)
             end #end of begin
           else
             sleep 1
