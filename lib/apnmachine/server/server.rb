@@ -11,7 +11,7 @@ module ApnMachine
           @redis = Redis.new(:host => redis_host, :port => redis_port)
         end
 
-        #set logging options
+        # Set logging options
         if log == STDOUT
           Config.logger = Logger.new STDOUT
         elsif File.exist?(log)
@@ -55,10 +55,10 @@ module ApnMachine
             retries = 3
 
             begin
-              #prepare notification
+              # Prepare notification
               notif_bin = Notification.to_bytes(notification)
 
-              #sending notification
+              # Sending notification
               Config.logger.debug 'Sending notification to APN'
               @ssl_socket.write(notif_bin)
               Config.logger.debug 'Notification sent'
@@ -81,12 +81,12 @@ module ApnMachine
               end
             rescue Exception => e
               Config.logger.error "Unable to handle: #{e}"
+            ensure
+              @flog.flush if @flog
             end #end of begin
           else
             sleep 1
           end # if notification
-
-          @flog.flush if @flog
         end #end of loop
       end # def start!
     end #class Server
